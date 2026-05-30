@@ -5,7 +5,8 @@
   "description": "Production-grade University ERP API built with NestJS, Prisma, PostgreSQL, Redis, JWT, and RBAC.",
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "lint": "eslint \"src/**/*.ts\"",
