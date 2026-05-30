@@ -1,29 +1,31 @@
-import { INestApplication, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  constructor(config: ConfigService) {
-    super({
-      adapter: new PrismaPg({
-        connectionString: config.getOrThrow<string>('databaseUrl'),
-      }),
-    });
-  }
+  private readonly logger = new Logger(PrismaService.name);
+  private connectionError?: unknown;
 
   async onModuleInit() {
-    await this.$connect();
+    try {
+      await this.$connect();
+      this.connectionError = undefined;
+    } catch (error) {
+      this.connectionError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Database connection failed. API will keep running, but database-backed requests will fail until Postgres is reachable. ${message}`);
+    }
   }
 
   async onModuleDestroy() {
     await this.$disconnect();
   }
 
-  async enableShutdownHooks(app: INestApplication) {
-    process.on('beforeExit', async () => {
-      await app.close();
-    });
+  isDatabaseReady() {
+    return !this.connectionError;
+  }
+
+  databaseErrorMessage() {
+    return this.connectionError instanceof Error ? this.connectionError.message : 'Database is not connected.';
   }
 }

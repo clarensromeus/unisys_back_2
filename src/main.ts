@@ -12,7 +12,7 @@ import { PrismaService } from './prisma/prisma.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const config = app.get(ConfigService);
-  const frontendUrl = config.getOrThrow<string>('frontendUrl');
+  const frontendUrl = config.getOrThrow<string>('FRONTEND_URL');
 
 app.use(helmet());
 
@@ -42,7 +42,7 @@ app.enableCors({
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));
 
   const prisma = app.get(PrismaService);
-  await prisma.enableShutdownHooks(app);
+  // Removed enableShutdownHooks as we removed that method from PrismaService
 
   const port = config.get<number>('port') ?? 4000;
   await app.listen(port);
