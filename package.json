@@ -4,6 +4,9 @@
   "private": true,
   "description": "Production-grade University ERP API built with NestJS, Prisma, PostgreSQL, Redis, JWT, and RBAC.",
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "postinstall": "prisma generate",
     "build": "prisma generate && nest build",

@@ -1,6 +1,18 @@
 {
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "nixpacks": {
+      "phases": {
+        "install": {
+          "dependsOn": ["setup"],
+          "cmds": ["npm install"]
+        },
+        "build": {
+          "dependsOn": ["install"],
+          "cmds": ["npm run build"]
+        }
+      }
+    }
   },
   "deploy": {
     "startCommand": "npx prisma migrate deploy && node dist/main.js"
