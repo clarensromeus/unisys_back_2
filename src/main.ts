@@ -13,11 +13,24 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const config = app.get(ConfigService);
   const frontendUrl = config.getOrThrow<string>('FRONTEND_URL');
+  // Allow multiple frontend URLs for CORS
+  const allowedOrigins = [
+    frontendUrl,
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://unisys.cariblink.org',
+  ];
 
 app.use(helmet());
 
 app.enableCors({
-  origin: frontendUrl,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
 });
