@@ -47,6 +47,7 @@ export class PaginationQueryDto {
   @IsOptional() @IsString() feeType?: string;
   @IsOptional() @IsString() returned?: string;
   @IsOptional() @IsString() isActive?: string;
+  @IsOptional() @IsString() organizationId?: string;
   @IsOptional() @IsString() departmentId?: string;
   @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() facultyId?: string;
@@ -62,6 +63,7 @@ export class PaginationQueryDto {
   @IsOptional() @IsString() teacherName?: string;
   @IsOptional() @IsString() instructorName?: string;
   @IsOptional() @IsString() studentId?: string;
+  @IsOptional() @IsString() email?: string;
   @IsOptional() @IsString() staffEmail?: string;
   @IsOptional() @IsString() userEmail?: string;
   @IsOptional() @IsString() bookId?: string;

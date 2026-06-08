@@ -31,6 +31,10 @@ class EnvironmentVariables {
   @IsNotEmpty()
   FRONTEND_URL: string;
 
+  @IsOptional()
+  @IsString()
+  PLATFORM_API_KEY?: string;
+
   @IsString()
   @IsNotEmpty()
   JWT_ACCESS_SECRET: string;
