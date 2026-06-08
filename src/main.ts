@@ -19,7 +19,7 @@ async function bootstrap() {
     'http://localhost:5173',
     'http://localhost:5174',
     'https://unisys.cariblink.org',
-    'https://https://www.cariblink.org',
+    'https://www.cariblink.org',
   ];
 
 app.use(helmet());
