@@ -1,11 +1,11 @@
 import 'dotenv/config';
-import { PrismaPg } from '@prisma/adapter-pg';
 import {
   AcademicStanding,
   AdmissionStatus,
   AttendanceStatus,
   BorrowStatus,
   ContractStatus,
+  EmployeeType,
   ExamType,
   FeeType,
   HostelAllocationStatus,
@@ -25,9 +25,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
+const prisma = new PrismaClient();
 
 async function main() {
   const password = await bcrypt.hash('Password123!', 12);
@@ -93,11 +91,12 @@ async function main() {
     },
   });
   if (adminRoleId) {
-    await prisma.userRoleAssignment.upsert({
-      where: { userId_roleId: { userId: admin.id, roleId: adminRoleId } },
-      update: {},
-      create: { userId: admin.id, roleId: adminRoleId },
+    const existingAssignment = await prisma.userRoleAssignment.findFirst({
+      where: { userId: admin.id, roleId: adminRoleId, scopeType: null, scopeId: null },
     });
+    if (!existingAssignment) {
+      await prisma.userRoleAssignment.create({ data: { userId: admin.id, roleId: adminRoleId } });
+    }
   }
 
   const engineering = await prisma.faculty.upsert({
@@ -116,7 +115,7 @@ async function main() {
     update: {},
     create: { organizationId: org.id, facultyId: engineering.id, code: 'CS', name: 'Computer Science' },
   });
-  await prisma.department.upsert({
+  const financeDept = await prisma.department.upsert({
     where: { organizationId_code: { organizationId: org.id, code: 'FIN' } },
     update: {},
     create: { organizationId: org.id, facultyId: businessFaculty.id, code: 'FIN', name: 'Finance and Accounting' },
@@ -134,6 +133,20 @@ async function main() {
       level: ProgramLevel.BACHELOR,
       durationTerms: 8,
       totalCredits: 128,
+    },
+  });
+  const businessProgram = await prisma.program.upsert({
+    where: { organizationId_code: { organizationId: org.id, code: 'BBA-FIN' } },
+    update: { facultyId: businessFaculty.id, departmentId: financeDept.id },
+    create: {
+      organizationId: org.id,
+      facultyId: businessFaculty.id,
+      departmentId: financeDept.id,
+      code: 'BBA-FIN',
+      name: 'BBA Finance',
+      level: ProgramLevel.BACHELOR,
+      durationTerms: 8,
+      totalCredits: 120,
     },
   });
 
@@ -182,19 +195,31 @@ async function main() {
       lastName: 'Morris',
     },
   });
-  const teacher = await prisma.teacher.upsert({
-    where: { userId: teacherUser.id },
-    update: { organizationId: org.id },
+  const teacherEmployee = await prisma.employee.upsert({
+    where: { organizationId_employeeNo: { organizationId: org.id, employeeNo: 'FAC-201' } },
+    update: { organizationId: org.id, userId: teacherUser.id, employeeType: EmployeeType.ACADEMIC, designation: 'Professor of Artificial Intelligence' },
     create: {
       organizationId: org.id,
       userId: teacherUser.id,
+      employeeNo: 'FAC-201',
+      employeeType: EmployeeType.ACADEMIC,
+      designation: 'Professor of Artificial Intelligence',
+    },
+  });
+  const teacher = await prisma.teacher.upsert({
+    where: { userId: teacherUser.id },
+    update: { organizationId: org.id, employeeId: teacherEmployee.id },
+    create: {
+      organizationId: org.id,
+      userId: teacherUser.id,
+      employeeId: teacherEmployee.id,
       departmentId: cs.id,
       employeeNo: 'FAC-201',
       specialization: 'Artificial Intelligence',
       officeLocation: 'Engineering Hall 4B',
     },
   });
-  await prisma.department.update({ where: { id: cs.id }, data: { headId: teacher.id } });
+  await prisma.department.update({ where: { id: cs.id }, data: { headId: teacherEmployee.id } });
 
   const course = await prisma.course.upsert({
     where: { organizationId_code: { organizationId: org.id, code: 'CS401' } },
@@ -320,8 +345,73 @@ async function main() {
 
   await prisma.courseRegistration.upsert({
     where: { studentId_courseOfferingId: { studentId: student.id, courseOfferingId: offering.id } },
-    update: { status: RegistrationStatus.ENROLLED },
-    create: { organizationId: org.id, studentId: student.id, courseOfferingId: offering.id, status: RegistrationStatus.ENROLLED },
+    update: { courseId: course.id, status: RegistrationStatus.ENROLLED, registeredAt: new Date('2026-01-15') },
+    create: { organizationId: org.id, studentId: student.id, courseId: course.id, courseOfferingId: offering.id, status: RegistrationStatus.ENROLLED, registeredAt: new Date('2026-01-15') },
+  });
+
+  const dashboardStudents = [
+    { studentId: 'STU-1002', firstName: 'Noah', lastName: 'Brooks', email: 'noah.brooks@northbridge.edu', programId: businessProgram.id, departmentId: financeDept.id, status: StudentStatus.ACTIVE, registration: RegistrationStatus.ENROLLED, registeredAt: '2026-02-12' },
+    { studentId: 'STU-1003', firstName: 'Mia', lastName: 'Chen', email: 'mia.chen@northbridge.edu', programId: program.id, departmentId: cs.id, status: StudentStatus.ACTIVE, registration: RegistrationStatus.WAITLISTED, registeredAt: '2026-03-08' },
+    { studentId: 'STU-1004', firstName: 'Liam', lastName: 'Patel', email: 'liam.patel@northbridge.edu', programId: businessProgram.id, departmentId: financeDept.id, status: StudentStatus.LEAVE, registration: RegistrationStatus.DROPPED, registeredAt: '2026-04-17' },
+    { studentId: 'STU-1005', firstName: 'Sophia', lastName: 'Garcia', email: 'sophia.garcia@northbridge.edu', programId: program.id, departmentId: cs.id, status: StudentStatus.ACTIVE, registration: RegistrationStatus.COMPLETED, registeredAt: '2026-05-22' },
+    { studentId: 'STU-1006', firstName: 'Ethan', lastName: 'Wilson', email: 'ethan.wilson@northbridge.edu', programId: businessProgram.id, departmentId: financeDept.id, status: StudentStatus.ACTIVE, registration: RegistrationStatus.ENROLLED, registeredAt: '2026-06-02' },
+    { studentId: 'STU-1007', firstName: 'Amara', lastName: 'Okafor', email: 'amara.okafor@northbridge.edu', programId: program.id, departmentId: cs.id, status: StudentStatus.ACTIVE, registration: RegistrationStatus.ENROLLED, registeredAt: '2026-06-18' },
+  ];
+
+  for (const item of dashboardStudents) {
+    const seededUser = await prisma.user.upsert({
+      where: { email: item.email },
+      update: { organizationId: org.id, role: UserRole.STUDENT, firstName: item.firstName, lastName: item.lastName },
+      create: {
+        organizationId: org.id,
+        email: item.email,
+        password,
+        role: UserRole.STUDENT,
+        firstName: item.firstName,
+        lastName: item.lastName,
+      },
+    });
+    const seededStudent = await prisma.student.upsert({
+      where: { organizationId_studentId: { organizationId: org.id, studentId: item.studentId } },
+      update: {
+        organizationId: org.id,
+        userId: seededUser.id,
+        departmentId: item.departmentId,
+        programId: item.programId,
+        status: item.status,
+      },
+      create: {
+        organizationId: org.id,
+        userId: seededUser.id,
+        studentId: item.studentId,
+        departmentId: item.departmentId,
+        programId: item.programId,
+        enrollmentDate: new Date('2025-08-18'),
+        expectedGraduationDate: new Date('2029-06-01'),
+        status: item.status,
+        currentGpa: 3.2,
+        cumulativeGpa: 3.1,
+        completedCredits: 28,
+        academicStanding: AcademicStanding.GOOD,
+      },
+    });
+    await prisma.courseRegistration.upsert({
+      where: { studentId_courseOfferingId: { studentId: seededStudent.id, courseOfferingId: offering.id } },
+      update: { courseId: course.id, status: item.registration, registeredAt: new Date(item.registeredAt) },
+      create: {
+        organizationId: org.id,
+        studentId: seededStudent.id,
+        courseId: course.id,
+        courseOfferingId: offering.id,
+        status: item.registration,
+        registeredAt: new Date(item.registeredAt),
+      },
+    });
+  }
+
+  await prisma.courseOffering.update({
+    where: { id: offering.id },
+    data: { enrolledCount: 4, waitlistedCount: 1 },
   });
   await prisma.attendance.upsert({
     where: { studentId_courseOfferingId_date: { studentId: student.id, courseOfferingId: offering.id, date: new Date('2026-05-01') } },
@@ -419,6 +509,123 @@ async function main() {
       type: TransactionType.TUITION,
     },
   });
+
+  const revenueSeedRows = [
+    ['SCI', 'Sciences', 'Science Studies', 'BSC-SCI', 'BSc Sciences', 'science.revenue@northbridge.edu', 'STU-R201', 3120],
+    ['LAW', 'Droit', 'Law Department', 'LLB-LAW', 'LLB Law', 'law.revenue@northbridge.edu', 'STU-R202', 2410],
+    ['LTR', 'Lettres', 'Letters Department', 'BA-LTR', 'BA Lettres', 'letters.revenue@northbridge.edu', 'STU-R203', 1980],
+    ['MED', 'Médecine', 'Medicine Department', 'MD-MED', 'Doctor of Medicine', 'medicine.revenue@northbridge.edu', 'STU-R204', 1840],
+    ['ECO', 'Économie', 'Economics Department', 'BSC-ECO', 'BSc Economics', 'economics.revenue@northbridge.edu', 'STU-R205', 1660],
+    ['AGR', 'Agronomie', 'Agronomy Department', 'BSC-AGR', 'BSc Agronomy', 'agronomy.revenue@northbridge.edu', 'STU-R206', 1420],
+    ['ART', 'Arts', 'Arts Department', 'BA-ART', 'BA Arts', 'arts.revenue@northbridge.edu', 'STU-R207', 1260],
+    ['EDU', 'Éducation', 'Education Department', 'BED-EDU', 'Bachelor of Education', 'education.revenue@northbridge.edu', 'STU-R208', 1140],
+    ['NUR', 'Sciences infirmières', 'Nursing Department', 'BSN-NUR', 'BSc Nursing', 'nursing.revenue@northbridge.edu', 'STU-R209', 980],
+    ['ARC', 'Architecture', 'Architecture Department', 'BAR-ARC', 'Bachelor of Architecture', 'architecture.revenue@northbridge.edu', 'STU-R210', 760],
+  ] as const;
+
+  for (const [code, facultyName, departmentName, programCode, programName, email, studentNo, amount] of revenueSeedRows) {
+    const faculty = await prisma.faculty.upsert({
+      where: { organizationId_code: { organizationId: org.id, code } },
+      update: { name: facultyName },
+      create: { organizationId: org.id, code, name: facultyName },
+    });
+    const department = await prisma.department.upsert({
+      where: { organizationId_code: { organizationId: org.id, code: `${code}-DPT` } },
+      update: { facultyId: faculty.id, name: departmentName },
+      create: { organizationId: org.id, facultyId: faculty.id, code: `${code}-DPT`, name: departmentName },
+    });
+    const seededProgram = await prisma.program.upsert({
+      where: { organizationId_code: { organizationId: org.id, code: programCode } },
+      update: { facultyId: faculty.id, departmentId: department.id, name: programName },
+      create: {
+        organizationId: org.id,
+        facultyId: faculty.id,
+        departmentId: department.id,
+        code: programCode,
+        name: programName,
+        level: ProgramLevel.BACHELOR,
+        durationTerms: 8,
+        totalCredits: 120,
+      },
+    });
+    const seededUser = await prisma.user.upsert({
+      where: { email },
+      update: { organizationId: org.id, role: UserRole.STUDENT },
+      create: {
+        organizationId: org.id,
+        email,
+        password,
+        role: UserRole.STUDENT,
+        firstName: facultyName,
+        lastName: 'Revenue',
+      },
+    });
+    const seededStudent = await prisma.student.upsert({
+      where: { organizationId_studentId: { organizationId: org.id, studentId: studentNo } },
+      update: { userId: seededUser.id, departmentId: department.id, programId: seededProgram.id, status: StudentStatus.ACTIVE },
+      create: {
+        organizationId: org.id,
+        userId: seededUser.id,
+        studentId: studentNo,
+        departmentId: department.id,
+        programId: seededProgram.id,
+        enrollmentDate: new Date('2025-08-18'),
+        expectedGraduationDate: new Date('2029-06-01'),
+        status: StudentStatus.ACTIVE,
+        currentGpa: 3.0,
+        cumulativeGpa: 3.0,
+        completedCredits: 24,
+        academicStanding: AcademicStanding.GOOD,
+      },
+    });
+    const seededInvoice = await prisma.invoice.upsert({
+      where: { organizationId_invoiceNo: { organizationId: org.id, invoiceNo: `INV-${studentNo}` } },
+      update: { studentId: seededStudent.id, semesterId: semester.id, status: InvoiceStatus.PAID, subtotal: amount, total: amount },
+      create: {
+        organizationId: org.id,
+        studentId: seededStudent.id,
+        semesterId: semester.id,
+        invoiceNo: `INV-${studentNo}`,
+        status: InvoiceStatus.PAID,
+        subtotal: amount,
+        discountTotal: 0,
+        total: amount,
+        dueDate: new Date('2026-02-01'),
+        items: { create: [{ description: `${facultyName} tuition`, amount }] },
+      },
+    });
+    const seededPayment = await prisma.payment.upsert({
+      where: { organizationId_paymentNo: { organizationId: org.id, paymentNo: `PAY-${studentNo}` } },
+      update: { invoiceId: seededInvoice.id, studentId: seededStudent.id, amount, status: PaymentStatus.PAID },
+      create: {
+        organizationId: org.id,
+        invoiceId: seededInvoice.id,
+        studentId: seededStudent.id,
+        paymentNo: `PAY-${studentNo}`,
+        amount,
+        status: PaymentStatus.PAID,
+        method: PaymentMethod.ONLINE,
+        reference: `seed-payment-${studentNo}`,
+      },
+    });
+    const existingTransaction = await prisma.transaction.findFirst({
+      where: { organizationId: org.id, paymentId: seededPayment.id, type: TransactionType.TUITION },
+    });
+    if (!existingTransaction) {
+      await prisma.transaction.create({
+        data: {
+          organizationId: org.id,
+          studentId: seededStudent.id,
+          invoiceId: seededInvoice.id,
+          paymentId: seededPayment.id,
+          amount,
+          status: PaymentStatus.PAID,
+          type: TransactionType.TUITION,
+        },
+      });
+    }
+  }
+
   await prisma.studentHold.deleteMany({ where: { organizationId: org.id, studentId: student.id, reason: 'Library fine pending review' } });
   await prisma.studentHold.create({
     data: {
